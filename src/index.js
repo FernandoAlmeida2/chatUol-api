@@ -53,13 +53,37 @@ server.post("/participants", (req, res) => {
     .catch((err) => console.log(err));
 });
 
-// test routes
 server.get("/participants", (req, res) => {
   db.collection("participants")
     .find()
     .toArray()
     .then((participants) => {
       res.send(participants);
+    })
+    .catch((err) => console.log(err));
+});
+
+server.post("/messages", (req, res) => {
+  /*  const schema = Joi.object({
+        name: Joi.string().required(),
+    }) */
+  const { to, text, type } = req.body;
+  const from = req.headers.user;
+  db.collection("participants")
+    .findOne({ name: from })
+    .then((user) => {
+      if (user === null) {
+        res.sendStatus(422);
+        return;
+      }
+      db.collection("messages").insertOne({
+        from,
+        to,
+        text,
+        type,
+        time: dayjs().format("HH:mm:ss"),
+      });
+      res.sendStatus(201);
     })
     .catch((err) => console.log(err));
 });
@@ -73,8 +97,6 @@ server.get("/messages", (req, res) => {
     })
     .catch((err) => console.log(err));
 });
-
-// end test routes
 
 server.listen("5000", () => {
   console.log("Rodando em http://localhost:5000");
