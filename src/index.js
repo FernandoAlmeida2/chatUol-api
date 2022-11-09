@@ -89,11 +89,20 @@ server.post("/messages", (req, res) => {
 });
 
 server.get("/messages", (req, res) => {
+  const { limit } = req.query;
+  const user = req.headers.user;
   db.collection("messages")
     .find()
     .toArray()
     .then((messages) => {
-      res.send(messages);
+      const filteredMessages = messages.filter(
+        (message) =>
+          message.type === "message" ||
+          (message.type === "private_message" &&
+            (message.to === user || message.from === user))
+      );
+      if (limit) res.send(filteredMessages.slice(-limit));
+      else res.send(filteredMessages);
     })
     .catch((err) => console.log(err));
 });
