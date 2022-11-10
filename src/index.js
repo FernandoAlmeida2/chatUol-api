@@ -151,6 +151,28 @@ server.delete("/messages/:ID_DA_MENSAGEM", async (req, res) => {
   }
 });
 
+server.put("/messages/:ID_DA_MENSAGEM", async (req, res) => {
+  const from = req.headers.user;
+  const { to, text, type } = req.body;
+  const id = req.params.ID_DA_MENSAGEM;
+  try{
+    const o_id = new ObjectId(id);
+    const message = await db.collection("messages").findOne({ _id: o_id });
+    if (message === null) {
+      res.sendStatus(404);
+      return;
+    }
+    if (message.from !== from) {
+      res.sendStatus(401);
+      return;
+    }
+    await db.collection("messages").updateOne({ _id: o_id }, { $set: { to, text, type } });
+    res.sendStatus(200);
+  } catch (err) {
+    console.log(err);
+  }
+})
+
 server.listen("5000", () => {
   console.log("Running in http://localhost:5000");
 });
