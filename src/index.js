@@ -104,5 +104,5 @@ server.get("/messages", async (req, res) => {
 });
 
 server.listen("5000", () => {
-  console.log("Rodando em http://localhost:5000");
+  console.log("Running in http://localhost:5000");
 });
