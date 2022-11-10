@@ -103,6 +103,23 @@ server.get("/messages", async (req, res) => {
   }
 });
 
+server.post("/status", async (req, res) => {
+  const user = req.headers.user;
+  
+  try{
+    const activeUser = await db.collection("participants").findOne({ name: user });
+
+    if (activeUser === null) {
+      res.sendStatus(404);
+      return;
+    }
+    await db.collection("participants").updateOne({name: user}, {$set: {lastStatus: Date.now()}});
+    res.sendStatus(200)
+  }catch(err){
+    console.log(err);
+  }
+})
+
 server.listen("5000", () => {
   console.log("Running in http://localhost:5000");
 });
