@@ -1,8 +1,9 @@
 import express from "express";
 import cors from "cors";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import dayjs from "dayjs";
+//import { object } from "joi";
 //import Joi from "joi";
 
 //configs
@@ -105,20 +106,50 @@ server.get("/messages", async (req, res) => {
 
 server.post("/status", async (req, res) => {
   const user = req.headers.user;
-  
-  try{
-    const activeUser = await db.collection("participants").findOne({ name: user });
+
+  try {
+    const activeUser = await db
+      .collection("participants")
+      .findOne({ name: user });
 
     if (activeUser === null) {
       res.sendStatus(404);
       return;
     }
-    await db.collection("participants").updateOne({name: user}, {$set: {lastStatus: Date.now()}});
-    res.sendStatus(200)
-  }catch(err){
+    await db
+      .collection("participants")
+      .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
+    res.sendStatus(200);
+  } catch (err) {
     console.log(err);
   }
-})
+});
+
+server.delete("/messages/:ID_DA_MENSAGEM", async (req, res) => {
+  const user = req.headers.user;
+  const id = req.params.ID_DA_MENSAGEM;
+
+  if(id === ""){
+    res.sendStatus(409);
+    return;
+  }
+  try {
+    const o_id = new ObjectId(id);
+    const message = await db.collection("messages").findOne({ _id: o_id });
+    if (message === null) {
+      res.sendStatus(404);
+      return;
+    }
+    if (message.from !== user) {
+      res.sendStatus(401);
+      return;
+    }
+    await db.collection("messages").deleteOne({ _id: o_id });
+    res.sendStatus(200);
+  } catch (err) {
+    console.log(err);
+  }
+});
 
 server.listen("5000", () => {
   console.log("Running in http://localhost:5000");
