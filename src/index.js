@@ -116,6 +116,7 @@ server.get("/messages", async (req, res) => {
     const filteredMessages = messages.filter(
       (message) =>
         message.type === "message" ||
+        message.to === "Todos" ||
         (message.type === "private_message" &&
           (message.to === user || message.from === user))
     );
@@ -187,16 +188,33 @@ server.put("/messages/:ID_DA_MENSAGEM", async (req, res) => {
       res.sendStatus(401);
       return;
     }
-    await db
-      .collection("messages")
-      .updateOne({ _id: o_id }, { $set: body });
+    await db.collection("messages").updateOne({ _id: o_id }, { $set: body });
     res.sendStatus(200);
   } catch (err) {
     console.log(err);
   }
 });
 
-
+//autoremove inactive users
+setInterval(async () => {
+  try {
+    const users = await db.collection("participants").find().toArray();
+    users.forEach(async (user) => {
+      if (Date.now() - user.lastStatus > 10000) {
+        await db.collection("participants").deleteOne({ _id: user._id });
+        await db.collection("messages").insertOne({
+          from: user.name,
+          to: "Todos",
+          text: "sai da sala...",
+          type: "status",
+          time: dayjs().format("HH:mm:ss"),
+        });
+      }
+    });
+  } catch (err) {
+    console.log(err);
+  }
+}, 15000);
 
 server.listen("5000", () => {
   console.log("Running in http://localhost:5000");
