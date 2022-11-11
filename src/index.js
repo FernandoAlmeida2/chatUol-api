@@ -3,8 +3,19 @@ import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import dayjs from "dayjs";
-//import { object } from "joi";
-//import Joi from "joi";
+import Joi from "joi";
+
+// schemas
+
+const userSchema = Joi.object({
+  name: Joi.string().required(),
+});
+
+const messageSchema = Joi.object({
+  to: Joi.string().required(),
+  text: Joi.string().required(),
+  type: Joi.string().valid("message", "private_message").required(),
+});
 
 //configs
 const server = express();
@@ -19,27 +30,26 @@ await mongoClient.connect();
 db = mongoClient.db("batePapoUol");
 
 server.post("/participants", async (req, res) => {
-  /*  const schema = Joi.object({
-        name: Joi.string().required(),
-    }) */
-  const { name } = req.body;
-  if (!name) {
-    res.sendStatus(422);
+  const body = req.body;
+  const validation = userSchema.validate(body, { abortEarly: false });
+  if (validation.error) {
+    const errorList = validation.error.details.map((detail) => detail.message);
+    res.status(422).send(errorList);
     return;
   }
   try {
-    const user = await db.collection("participants").findOne({ name });
+    const user = await db.collection("participants").findOne(body);
 
     if (user !== null) {
       res.sendStatus(409);
       return;
     }
     await db.collection("participants").insertOne({
-      name,
+      name: body.name,
       lastStatus: Date.now(),
     });
     await db.collection("messages").insertOne({
-      from: name,
+      from: body.name,
       to: "Todos",
       text: "entra na sala...",
       type: "status",
@@ -61,23 +71,27 @@ server.get("/participants", async (req, res) => {
 });
 
 server.post("/messages", async (req, res) => {
-  /*  const schema = Joi.object({
-        name: Joi.string().required(),
-    }) */
-  const { to, text, type } = req.body;
+  const body = req.body;
   const from = req.headers.user;
-  try {
-    const user = await db.collection("participants").findOne({ name: from });
+  const validation = messageSchema.validate(body, { abortEarly: false });
 
-    if (user === null) {
-      res.sendStatus(422);
+  if (validation.error) {
+    const errorList = validation.error.details.map((detail) => detail.message);
+    res.status(422).send(errorList);
+    return;
+  }
+  try {
+    const activeUser = await db
+      .collection("participants")
+      .findOne({ name: from });
+
+    if (activeUser === null) {
+      res.status(422).send(`${from} is offline`);
       return;
     }
     await db.collection("messages").insertOne({
       from,
-      to,
-      text,
-      type,
+      ...body,
       time: dayjs().format("HH:mm:ss"),
     });
     res.sendStatus(201);
@@ -91,6 +105,14 @@ server.get("/messages", async (req, res) => {
   const user = req.headers.user;
   try {
     const messages = await db.collection("messages").find().toArray();
+    const activeUser = await db
+      .collection("participants")
+      .findOne({ name: user });
+
+    if (activeUser === null) {
+      res.status(422).send(`${user} is offline`);
+      return;
+    }
     const filteredMessages = messages.filter(
       (message) =>
         message.type === "message" ||
@@ -105,12 +127,9 @@ server.get("/messages", async (req, res) => {
 });
 
 server.post("/status", async (req, res) => {
-  const user = req.headers.user;
-
+  const name = req.headers.user;
   try {
-    const activeUser = await db
-      .collection("participants")
-      .findOne({ name: user });
+    const activeUser = await db.collection("participants").findOne({ name });
 
     if (activeUser === null) {
       res.sendStatus(404);
@@ -118,7 +137,7 @@ server.post("/status", async (req, res) => {
     }
     await db
       .collection("participants")
-      .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
+      .updateOne({ name }, { $set: { lastStatus: Date.now() } });
     res.sendStatus(200);
   } catch (err) {
     console.log(err);
@@ -128,13 +147,8 @@ server.post("/status", async (req, res) => {
 server.delete("/messages/:ID_DA_MENSAGEM", async (req, res) => {
   const user = req.headers.user;
   const id = req.params.ID_DA_MENSAGEM;
-
-  if(id === ""){
-    res.sendStatus(409);
-    return;
-  }
+  const o_id = new ObjectId(id);
   try {
-    const o_id = new ObjectId(id);
     const message = await db.collection("messages").findOne({ _id: o_id });
     if (message === null) {
       res.sendStatus(404);
@@ -153,9 +167,16 @@ server.delete("/messages/:ID_DA_MENSAGEM", async (req, res) => {
 
 server.put("/messages/:ID_DA_MENSAGEM", async (req, res) => {
   const from = req.headers.user;
-  const { to, text, type } = req.body;
+  const body = req.body;
   const id = req.params.ID_DA_MENSAGEM;
-  try{
+  const validation = messageSchema.validate(body, { abortEarly: false });
+
+  if (validation.error) {
+    const errorList = validation.error.details.map((detail) => detail.message);
+    res.status(422).send(errorList);
+    return;
+  }
+  try {
     const o_id = new ObjectId(id);
     const message = await db.collection("messages").findOne({ _id: o_id });
     if (message === null) {
@@ -166,12 +187,16 @@ server.put("/messages/:ID_DA_MENSAGEM", async (req, res) => {
       res.sendStatus(401);
       return;
     }
-    await db.collection("messages").updateOne({ _id: o_id }, { $set: { to, text, type } });
+    await db
+      .collection("messages")
+      .updateOne({ _id: o_id }, { $set: body });
     res.sendStatus(200);
   } catch (err) {
     console.log(err);
   }
-})
+});
+
+
 
 server.listen("5000", () => {
   console.log("Running in http://localhost:5000");
